@@ -1,0 +1,10 @@
+# --- Python bytecode / cache ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# --- Env & local config ---
+.env
+.env.*
+*.local
