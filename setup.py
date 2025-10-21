@@ -123,58 +123,46 @@ def ensure_table(name):
     arn = desc["TableArn"]
     return arn
 
-def build_lambda_zip_bytes():
-    """ Lambda sin PIL: copia el objeto original a thumbnails/<key> y guarda metadatos. """
-    code = f'''import os, json, boto3
-s3 = boto3.client("s3")
-dynamodb = boto3.resource("dynamodb")
-THUMB_BUCKET = os.environ["THUMB_BUCKET"]
-TABLE_NAME = os.getenv("TABLE_NAME", "{TABLE_NAME}")
-table = dynamodb.Table(TABLE_NAME)
+def build_lambda_zip_bytes(source_path: str = None) -> bytes:
+    """
+    Crea el paquete ZIP de la Lambda leyendo el código desde disco.
+    Por defecto toma ./lambda_function/lambda_function.py y lo deja en la raíz del ZIP
+    con el nombre 'lambda_function.py' (Handler: lambda_function.lambda_handler).
+    """
+    import os
+    import io
+    import zipfile
 
-def _parse_body(record):
-    payload = record.get("body")
-    if isinstance(payload, (bytes, bytearray)):
-        payload = payload.decode("utf-8")
-    if isinstance(payload, str):
-        return json.loads(payload)
-    if isinstance(payload, dict):
-        return payload
-    raise ValueError("Unsupported body type")
+    # Ruta por defecto: ./lambda_function/lambda_function.py
+    if source_path is None:
+        source_path = os.path.join("lambda_function", "lambda_function.py")
 
-def lambda_handler(event, context):
-    for record in event.get("Records", []):
-        body = _parse_body(record)
-        src_bucket = body["bucket_name"]
-        image_key = body["image_key"]
+    if not os.path.isfile(source_path):
+        raise FileNotFoundError(f"No se encontró el archivo de la Lambda en: {source_path}")
 
-        head = s3.head_object(Bucket=src_bucket, Key=image_key)
-        content_type = head.get("ContentType", "application/octet-stream")
-        size_bytes = head.get("ContentLength", 0)
+    # Leer el código fuente
+    with open(source_path, "rb") as f:
+        code_bytes = f.read()
 
-        thumb_key = f"thumbnails/{{image_key}}"
-        s3.copy_object(
-            Bucket=THUMB_BUCKET,
-            Key=thumb_key,
-            CopySource={{"Bucket": src_bucket, "Key": image_key}},
-            MetadataDirective="REPLACE",
-            ContentType=content_type
-        )
-
-        table.put_item(Item={{
-            "ImageID": image_key,
-            "OriginalURL":  f"https://{{src_bucket}}.s3.amazonaws.com/{{image_key}}",
-            "ThumbnailURL": f"https://{{THUMB_BUCKET}}.s3.amazonaws.com/{{thumb_key}}",
-            "Bytes": size_bytes,
-            "Note": "No resize (pure-Python)"
-        }})
-    return {{"statusCode": 200, "body": json.dumps("OK")}}
-'''
+    # Crear ZIP en memoria
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("lambda_function.py", code)
+        # Guardar el código en la RAÍZ del zip con el nombre esperado por el handler
+        z.writestr("lambda_function.py", code_bytes)
+
+        # (Opcional) Si tienes dependencias puras ya vendorizadas en una carpeta (p.ej. lambda_function/build),
+        # puedes incluirlas en el ZIP en la raíz:
+        # deps_dir = os.path.join("lambda_function", "build")
+        # if os.path.isdir(deps_dir):
+        #     for root, _, files in os.walk(deps_dir):
+        #         for name in files:
+        #             abs_path = os.path.join(root, name)
+        #             rel_path = os.path.relpath(abs_path, deps_dir)  # deja los paquetes en la raíz del zip
+        #             z.write(abs_path, arcname=rel_path)
+
     buf.seek(0)
     return buf.read()
+
 
 def ensure_lambda(function_name, role_arn, thumb_bucket):
     code_bytes = build_lambda_zip_bytes()
@@ -233,75 +221,54 @@ def ensure_sqs_trigger(queue_arn, function_name, batch_size=3, enabled=True):
     print(f"[Lambda] Trigger SQS creado (UUID={uuid})")
     return uuid
 
-# -------- NEW: desplegar website en el bucket de thumbnails --------
-GALLERY_HTML = r"""<!doctype html>
-<html lang="es"><head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Galería de Thumbnails</title>
-<style>
-:root{--bg:#0b0d11;--fg:#e6e6e6;--muted:#9aa3af;--card:#111827}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-header{padding:24px;max-width:1100px;margin:0 auto}
-h1{margin:0 0 6px;font-size:24px}
-.sub{color:var(--muted);font-size:14px}
-#status{color:var(--muted);padding:0 24px;max-width:1100px;margin:0 auto}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;padding:24px;max-width:1100px;margin:0 auto}
-.card{background:var(--card);border-radius:16px;text-decoration:none;color:inherit;box-shadow:0 4px 10px rgba(0,0,0,.2);overflow:hidden;display:flex;flex-direction:column}
-img{width:100%;height:160px;object-fit:cover;display:block;background:#0b0d11}
-.name{padding:10px 12px;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-footer{color:var(--muted);text-align:center;padding:24px}
-</style></head>
-<body>
-<header><h1>Galería de Thumbnails</h1><div class="sub">Descubierta automáticamente desde <code>thumbnails/</code></div><div id="status">Cargando…</div></header>
-<main id="grid" class="grid"></main><footer>Generado en el navegador</footer>
-<script>
-const PREFIX="thumbnails/";
-function listingUrl(t){const e=location.origin,n=new URLSearchParams({"list-type":"2",prefix:PREFIX,"max-keys":"1000"});return t&&n.set("continuation-token",t),e+"/?"+n.toString()}
-function objectUrl(t){return location.origin+"/"+encodeURIComponent(t)}
-async function listAllKeys(){const t=[];let e=null;for(;;){const n=await fetch(listingUrl(e));if(!n.ok)throw new Error("List error: "+n.status+" "+n.statusText);const i=await n.text(),o=(new DOMParser).parseFromString(i,"application/xml"),a=Array.from(o.getElementsByTagName("Contents"));a.forEach(e=>{const n=e.getElementsByTagName("Key")[0]?.textContent||"";!n.endsWith("/")&&/\.(jpe?g|png|webp|gif|bmp|tiff)$/i.test(n)&&t.push(n)});if("true"!==o.getElementsByTagName("IsTruncated")[0]?.textContent)break;e=o.getElementsByTagName("NextContinuationToken")[0]?.textContent||null}return t}
-function render(t){const e=document.getElementById("status"),n=document.getElementById("grid");if(!t.length)return void(e.textContent="No se encontraron imágenes en thumbnails/.");e.textContent=`${t.length} imágenes.`;const i=document.createDocumentFragment();t.forEach(t=>{const e=document.createElement("a");e.className="card",e.href=objectUrl(t),e.target="_blank",e.rel="noopener";const n=document.createElement("img");n.src=objectUrl(t),n.alt=t.split("/").pop(),n.loading="lazy";const o=document.createElement("div");o.className="name",o.textContent=t.split("/").pop(),e.append(n,o),i.appendChild(e)}),n.appendChild(i)}
-(async()=>{try{render(await listAllKeys())}catch(t){document.getElementById("status").textContent="Error: "+(t?.message||t),console.error(t)}})();
-</script>
-</body></html>
-"""
 
-def deploy_static_site(thumbs_bucket, index_path="s3_static_website/index.html"):
+def deploy_static_site(thumbs_bucket, index_path=None):
+    """
+    Sube s3_static_website/index.html al bucket de thumbnails y habilita el hosting estático.
+    """
+    import os
+
+    # Ruta por defecto: s3_static_website/index.html (portable en Win/Linux)
+    if index_path is None:
+        index_path = os.path.join("s3_static_website", "index.html")
+
     # 1) Asegurar BPA OFF y policy pública (LIST thumbnails/ + GET)
     disable_bucket_bpa(thumbs_bucket)
     apply_thumbs_public_policy(thumbs_bucket)
 
-    # 2) Subir index.html (archivo local o generado)
-    if os.path.exists(index_path):
-        s3.upload_file(
-            Filename=index_path,
-            Bucket=thumbs_bucket,
-            Key="index.html",
-            ExtraArgs={"ContentType": "text/html"}
+    # 2) Subir index.html (obligatorio que exista)
+    if not os.path.exists(index_path):
+        raise FileNotFoundError(
+            f"No se encontró el fichero HTML en: {index_path}. "
+            "Crea s3_static_website/index.html o pasa index_path explícito."
         )
-        print(f"[S3] index.html subido desde {index_path}")
-    else:
-        s3.put_object(
-            Bucket=thumbs_bucket,
-            Key="index.html",
-            Body=GALLERY_HTML.encode("utf-8"),
-            ContentType="text/html; charset=utf-8",
-        )
-        print("[S3] index.html generado y subido (galería JS)")
+
+    # Usa upload_file con ContentType correcto
+    s3.upload_file(
+        Filename=index_path,
+        Bucket=thumbs_bucket,
+        Key="index.html",
+        ExtraArgs={"ContentType": "text/html; charset=utf-8"},
+    )
+    print(f"[S3] index.html subido desde {index_path}")
 
     # 3) Activar hosting estático
     s3.put_bucket_website(
         Bucket=thumbs_bucket,
-        WebsiteConfiguration={"IndexDocument": {"Suffix": "index.html"}}
+        WebsiteConfiguration={"IndexDocument": {"Suffix": "index.html"}},
     )
 
     # 4) Mostrar URL
     region = s3.meta.region_name or "us-east-1"
-    website_host = ("s3-website-us-east-1.amazonaws.com"
-                    if region == "us-east-1"
-                    else f"s3-website-{region}.amazonaws.com")
+    website_host = (
+        "s3-website-us-east-1.amazonaws.com"
+        if region == "us-east-1"
+        else f"s3-website-{region}.amazonaws.com"
+    )
     url = f"http://{thumbs_bucket}.{website_host}/"
     print(f"[S3] Website habilitado: {url}")
     return url
+
 
 # ---------- Main ----------
 if __name__ == "__main__":
