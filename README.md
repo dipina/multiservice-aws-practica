@@ -23,7 +23,7 @@ Este proyecto integra varios servicios de AWS para procesar imágenes subidas a 
 - **Boto3** para interacción con AWS.
 
 ### Credenciales
-Crea un archivo `.env` en la raíz del proyecto con las siguientes variables:
+Crea un archivo `.env` en la raíz del proyecto con las siguientes variables. Toma `.env.sample` como ejemplo. Recoge los credenciales de AWS Details->AWS CLI->Show:
 ```plaintext
 aws_access_key_id=YOUR_ACCESS_KEY
 aws_secret_access_key=YOUR_SECRET_KEY
@@ -35,6 +35,8 @@ aws_default_region=us-east-1
 
 ## **Instalación**
 
+0. Instalar AWS CLI
+   Ir a `https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html`
 1. Instala las dependencias:
    ```bash
    pip install -r requirements.txt
@@ -286,3 +288,5 @@ Este proyecto está bajo la licencia MIT. Consulta el archivo `LICENSE` para má
 ```
 
 ---
+
+./deploy.ps1
