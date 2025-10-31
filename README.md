@@ -286,7 +286,3 @@ Click Run to execute, results appear below. PartiQL is great for quick ad-hoc re
 ## **Licencia**
 Este proyecto está bajo la licencia MIT. Consulta el archivo `LICENSE` para más detalles.
 ```
-
----
-
-./deploy.ps1
