@@ -117,7 +117,7 @@ Crea la tabla DynamoDB para los metadatos:
 python setup_scripts/create_dynamodb_table.py
 ```
 
-Observar que hay un shelve llamado aws_resources.db donde todos los resultados intermedios del workflow se van guardando.
+Observar que hay un shelve llamado ```aws_resources.db``` donde todos los resultados intermedios del workflow se van guardando.
 Por ejemplo, nombre del bucket creado para guardar imágenes. El siguiente comando muestra sus contenidos.
 ```bash
 python show_shelve.py
