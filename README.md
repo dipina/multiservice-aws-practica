@@ -205,9 +205,9 @@ Here’s the fast way to run queries against your DynamoDB table from the AWS Co
 
 1) Open the table
 
-Go to DynamoDB in the AWS Console (make sure you’re in the same region where the table lives).
+   * Go to DynamoDB in the AWS Console (make sure you’re in the same region where the table lives).
 
-Tables → click your table (e.g., ImageMetadata).
+   * Tables → click your table (e.g., ImageMetadata).
 
 2) Explore items (point-and-click)
 
