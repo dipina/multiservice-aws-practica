@@ -31,6 +31,16 @@ aws_session_token=YOUR_SESSION_TOKEN
 aws_default_region=us-east-1
 ```
 
+### Credenciales para AWS CLI
+Actualizar el fichero `credentials`, en mi entorno Windows se encuentra en `C:\Users\dipin\.aws` con el siguiente código:
+```plaintext
+[default]
+aws_access_key_id=YOUR_ACCESS_KEY
+aws_secret_access_key=YOUR_SECRET_KEY
+aws_session_token=YOUR_SESSION_TOKEN
+aws_default_region=us-east-1
+```
+
 ---
 
 ## **Instalación**
