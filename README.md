@@ -22,7 +22,7 @@ Este proyecto integra varios servicios de AWS para procesar imágenes subidas a 
 - **Pillow** para manejo de imágenes.
 - **Boto3** para interacción con AWS.
 
-### Credenciales
+### Credenciales para los programas en Python
 Crea un archivo `.env` en la raíz del proyecto con las siguientes variables. Toma `.env.sample` como ejemplo. Recoge los credenciales de AWS Details->AWS CLI->Show:
 ```plaintext
 aws_access_key_id=YOUR_ACCESS_KEY
