@@ -211,35 +211,35 @@ Here’s the fast way to run queries against your DynamoDB table from the AWS Co
 
 2) Explore items (point-and-click)
 
-Tab Explore items.
+   * Tab Explore items.
 
-At the top, switch between:
+   * At the top, switch between:
 
-Query – efficient, but it requires the partition key.
+      * Query – efficient, but it requires the partition key.
 
-Scan – reads the whole table and can then filter (slower, costs more).
+      * Scan – reads the whole table and can then filter (slower, costs more).
 
-With your current schema
+   * With your current schema
 
-Your table has only a partition key ImageID (no sort key). That means:
+      * Your table has only a partition key ImageID (no sort key). That means:
 
-Query works only when you provide an exact ImageID value.
+      * Query works only when you provide an exact ImageID value.
 
-In the left panel, set ImageID = "statue_small.jpg" → Run.
+      * In the left panel, ```set ImageID = "statue_small.jpg"``` → Run.
 
-For anything else (e.g., “all images”, “all with ‘thumb’ in URL”), use Scan and add a Filter.
+   * For anything else (e.g., “all images”, “all with ‘thumb’ in URL”), use Scan and add a Filter.
 
-Useful filters (Scan)
+      * Useful filters (Scan)
 
-Click Add new filter:
+         * Click Add new filter:
 
-attribute_exists(ThumbnailURL)
+            ```attribute_exists(ThumbnailURL)```
 
-contains(ThumbnailURL, "thumbnails/")
+            ```contains(ThumbnailURL, "thumbnails/")```
 
-begins_with(ImageID, "statue_") (works, but still a Scan since you have no sort key)
+            ```begins_with(ImageID, "statue_")``` (works, but still a Scan since you have no sort key)
 
-Tip: Filters don’t reduce read capacity consumed by a Scan; they only reduce the results returned. Use sparingly on large tables.
+   * Tip: Filters don’t reduce read capacity consumed by a Scan; they only reduce the results returned. Use sparingly on large tables.
 
 3) Query with PartiQL (SQL-like)
 
